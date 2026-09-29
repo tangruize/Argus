@@ -92,6 +92,33 @@ class MissionExecutionSettlementMixin:
         def _budget_global_root(self) -> Path: ...
 
     # ------------------------------------------------------------------
+    # Optional vertical attempt ledger notification
+    # ------------------------------------------------------------------
+
+    def _notify_vertical_mission_settlement(
+        self, state: _MissionRunState, *, status: str | None = None, success: bool | None = None,
+    ) -> None:
+        if "framework_maintenance" in {str(tag).strip().lower() for tag in state.item.tags}:
+            return
+        from ...skills.vertical_select import resolve_vertical
+        from ...verticals._base import load_vertical_contract
+
+        root = state.vertical_root
+        assert root is not None, "settlement requires the prepared vertical root"
+        contract = load_vertical_contract(resolve_vertical(root), project_root=root)
+        contract.settle_mission(
+            stage=state.pipeline_stage_at_start, scope=state.item_scope,
+            project_root=Path(state.execution_workdir or self._project_workdir()),
+            state_root=self.memory.root, mission=state.item, outcome=state.outcome,
+            settlement={
+                "status": state.status if status is None else status,
+                "success": state.success if success is None else success,
+                "stop_reason": state.stop_reason, "stop_kind": state.stop_kind,
+                "iteration": state.iteration,
+            },
+        )
+
+    # ------------------------------------------------------------------
     # Phase: restricted validator-repair capability settlement
     # ------------------------------------------------------------------
 

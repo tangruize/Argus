@@ -23,6 +23,8 @@ with the operator.
 
 ## Surfaces
 
+Providers may implement `mission_settled(*, stage, scope, project_root, state_root, mission, outcome, settlement) -> None`. This optional `VerticalContract` hook is notified after each executed attempt is settled, including non-iterating success, failures, recoverable pauses, stage continuation/HOLD and superseded acceptance. `project_root` is the execution tree; `state_root` is the durable Life memory root. `settlement` carries `status`, `success`, `stop_reason`, `stop_kind` and `iteration`. Unlike `iteration_assessment`, it is not limited to successful iterating items and does not control native requeue policy. Providers must make ledger updates idempotent and reconcile interrupted attempts on restart; process termination cannot deliver a callback. Hook errors propagate rather than silently leaving provider state unreported. Older providers need not implement it; providers that depend on it should check for `VerticalContract.settle_mission`.
+
 | surface | where |
 |---|---|
 | CLI | `argus verticals {list,info,install,update,remove,enable,disable,refresh}` (also `python -m argus verticals ...`, never Node) |

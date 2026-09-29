@@ -35,6 +35,7 @@ def test_minimal_non_research_vertical_implements_only_documented_contract() -> 
     assert contract.allow_stage_rollback is True
     assert contract.banner("engineer") == ""
     assert contract.role_prompt_context is None
+    assert contract.mission_settler is None
     assert contract.evidence_schema is None
     assert contract.review_purchase(
         project_root=Path("."),
@@ -43,6 +44,41 @@ def test_minimal_non_research_vertical_implements_only_documented_contract() -> 
         semantic_duplicate=None,
         stage_reviewed_at=None,
     ) is None
+
+
+def test_optional_settlement_hook_preserves_attempt_and_separate_roots(tmp_path: Path) -> None:
+    calls = []
+    provider = SimpleNamespace(
+        CHECKLIST_STAGE_ORDER=("work",), CHECKLIST_ITEMS={"work": (_item("work"),)},
+        completion_gate="none", mission_settled=lambda **context: calls.append(context),
+    )
+    contract = vertical_contract("external", provider)
+    mission = object()
+    contract.settle_mission(
+        stage="work", scope="bounded", project_root=tmp_path / "source",
+        state_root=tmp_path / "state", mission=mission, outcome=None,
+        settlement={"status": "failed", "success": False},
+    )
+    assert len(calls) == 1 and calls[0]["mission"] is mission
+    assert calls[0]["project_root"] != calls[0]["state_root"]
+    provider.mission_settled = "not callable"
+    with pytest.raises(VerticalContractError, match="settlement hook"):
+        vertical_contract("external", provider)
+
+
+def test_settlement_provider_errors_are_not_success_shaped_fallbacks(tmp_path: Path) -> None:
+    def fail(**context):
+        raise OSError("ledger is not writable")
+
+    provider = SimpleNamespace(
+        CHECKLIST_STAGE_ORDER=("work",), CHECKLIST_ITEMS={"work": (_item("work"),)},
+        completion_gate="none", mission_settled=fail,
+    )
+    with pytest.raises(OSError, match="ledger is not writable"):
+        vertical_contract("external", provider).settle_mission(
+            stage="work", scope="bounded", project_root=tmp_path, state_root=tmp_path,
+            mission=None, outcome=None, settlement={"status": "done", "success": True},
+        )
 
 
 @pytest.mark.parametrize("value", [None, "false", "true", 0, 1, [], {}])

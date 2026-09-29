@@ -1,6 +1,7 @@
 """Observable settlement boundaries of one claimed, metered mission attempt."""
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -70,6 +71,20 @@ def _mission(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outcome, *, tags=(
     return supervisor, memory, item, runner, sink, learning_statuses
 
 
+def _observe_vertical_settlement(monkeypatch):
+    from argus.verticals import _base
+
+    calls = []
+    original = _base.load_vertical_contract
+
+    def load(name, project_root=None, **kwargs):
+        return replace(original(name, project_root=project_root, **kwargs),
+                       mission_settler=lambda **context: calls.append(context))
+
+    monkeypatch.setattr(_base, "load_vertical_contract", load)
+    return calls
+
+
 def test_state_rejects_undeclared_dependencies_without_sharing_mutable_defaults():
     item = BacklogItem.new(title="same task", objective="complete it")
     first, second = _MissionRunState(item), _MissionRunState(item)
@@ -108,10 +123,16 @@ def test_execution_branches_preserve_metering_and_publication_order(
     supervisor, memory, item, runner, sink, learning = _mission(
         tmp_path, monkeypatch, outcome, tags=tags,
     )
+    settlements = _observe_vertical_settlement(monkeypatch)
 
     result = supervisor._run_one(item)
 
     assert result["status"] == result_status
+    assert len(settlements) == 1
+    assert settlements[0]["settlement"]["status"] == result_status
+    assert settlements[0]["mission"].id == item.id
+    assert settlements[0]["project_root"] == tmp_path / "project"
+    assert settlements[0]["state_root"] == memory.root
     assert runner.calls == 1
     # Reload the persisted row and call ledger, rather than inspecting scratch state.
     assert next(row.status for row in memory.backlog.all() if row.id == item.id) == stored_status
@@ -133,6 +154,7 @@ def test_superseded_outcome_is_metered_without_settling_replacement(tmp_path, mo
     outcome = _Outcome(True, "done")
     outcome.acceptance_assessment_superseded = True
     supervisor, memory, item, runner, sink, learning = _mission(tmp_path, monkeypatch, outcome)
+    settlements = _observe_vertical_settlement(monkeypatch)
 
     def replace_contract():
         memory.backlog.update(
@@ -146,6 +168,8 @@ def test_superseded_outcome_is_metered_without_settling_replacement(tmp_path, mo
 
     assert result["status"] == "claim_lost"
     assert result["recoverable"] is True
+    assert len(settlements) == 1
+    assert settlements[0]["settlement"]["status"] == "claim_lost"
     stored = next(row for row in memory.backlog.all() if row.id == item.id)
     assert (stored.status, stored.objective, stored.acceptance_check) == (
         "pending", "New accepted contract.", "Use the replacement acceptance check.",

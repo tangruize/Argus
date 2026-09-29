@@ -146,6 +146,7 @@ class MissionExecutionMixin(
             # Preflight lost its contract/claim while the provider was running.
             # Meter that call, then leave the current task untouched. In
             # particular, never settle the newer task using this old outcome.
+            self._notify_vertical_mission_settlement(state, status="claim_lost", success=False)
             return {
                 "success": False, "status": "claim_lost", "item_id": item.id,
                 "recoverable": True, "stop_reason": state.stop_reason,
@@ -154,6 +155,9 @@ class MissionExecutionMixin(
 
         paused_result = self._maybe_pause_for_recoverable_stop(state)
         if paused_result is not None:
+            self._notify_vertical_mission_settlement(
+                state, status=str(paused_result["status"]), success=bool(paused_result.get("success", False)),
+            )
             return paused_result
 
         # Settle authority and iteration before ordinary terminal classification.
@@ -172,8 +176,12 @@ class MissionExecutionMixin(
         if state.iteration is None:
             transition_result = self._maybe_short_circuit_for_stage_transition(state)
             if transition_result is not None:
+                self._notify_vertical_mission_settlement(
+                    state, status=str(transition_result["status"]), success=bool(transition_result["success"]),
+                )
                 return transition_result
 
         # Finalize the backlog first; only then publish the settled outcome.
         self._finalize_mission_status(state)
+        self._notify_vertical_mission_settlement(state)
         return self._emit_mission_outcome_and_build_result(state)

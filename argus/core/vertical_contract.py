@@ -122,6 +122,15 @@ class BackgroundReconciler(Protocol):
     ) -> None: ...
 
 
+class MissionSettlementHook(Protocol):
+    """Optional idempotent notification for every executed attempt outcome."""
+
+    def __call__(
+        self, *, stage: str, scope: str, project_root: Path, state_root: Path,
+        mission: Any, outcome: Any, settlement: dict[str, Any],
+    ) -> None: ...
+
+
 @dataclass(frozen=True)
 class IterationAssessment:
     """A vertical's domain-specific reason to continue or stop iteration.
@@ -225,6 +234,7 @@ class VerticalContract:
     workflow_profile: str = ""
     workflow_stage_requirements: dict[str, tuple[str, ...]] = field(default_factory=dict)
     workflow_requested_stages: tuple[str, ...] = ()
+    mission_settler: MissionSettlementHook | None = None
 
     def compose_workflow(self, requested_stages: object) -> VerticalContract:
         if not self.workflow_stage_requirements:
@@ -485,6 +495,17 @@ class VerticalContract:
         raise VerticalContractError(
             f"vertical {self.name!r} iteration assessor returned "
             f"{type(value).__name__}, expected IterationAssessment or None"
+        )
+
+    def settle_mission(
+        self, *, stage: str, scope: str, project_root: Path, state_root: Path,
+        mission: Any, outcome: Any, settlement: dict[str, Any],
+    ) -> None:
+        if self.mission_settler is None:
+            return
+        self.mission_settler(
+            stage=stage, scope=scope, project_root=project_root, state_root=state_root,
+            mission=mission, outcome=outcome, settlement=dict(settlement),
         )
 
     def adopt_operator_objective(self, project_root: Path, request: str) -> bool:
@@ -764,6 +785,9 @@ def vertical_contract(name: str, provider: Any) -> VerticalContract:
         raise VerticalContractError(
             f"vertical {name!r} has a non-callable iteration assessor"
         )
+    mission_settler = getattr(provider, "mission_settled", None)
+    if mission_settler is not None and not callable(mission_settler):
+        raise VerticalContractError(f"vertical {name!r} has a non-callable mission settlement hook")
     operator_objective_adopter = getattr(provider, "adopt_operator_objective", None)
     if operator_objective_adopter is not None and not callable(
         operator_objective_adopter
@@ -924,6 +948,7 @@ def vertical_contract(name: str, provider: Any) -> VerticalContract:
         planner_task_validator=planner_task_validator,
         review_purchase_policy=review_purchase_policy,
         iteration_assessor=iteration_assessor,
+        mission_settler=mission_settler,
         operator_objective_adopter=operator_objective_adopter,
         legacy_state_importer=legacy_state_importer,
         stage_primary_deliverables=stage_primary_deliverables,
@@ -935,6 +960,7 @@ def vertical_contract(name: str, provider: Any) -> VerticalContract:
 __all__ = [
     "VERTICAL_CONTRACT_VERSION",
     "MissionPrelude",
+    "MissionSettlementHook",
     "IterationAssessment",
     "IterationAssessmentHook",
     "PlannerReviewPurchaseDecision",
