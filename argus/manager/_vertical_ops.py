@@ -571,9 +571,9 @@ class _VerticalDecisionMixin:
         from ..core.pipeline_state import read_pipeline_state
 
         prior_state = read_pipeline_state(self.project_root)
-        if persisted_vertical:
+        if persisted_vertical and prior_state.get("workflow_profile"):
             active_route_contract += (
-                f"\nworkflow_profile={prior_state.get('workflow_profile') or 'legacy full'}\n"
+                f"\nworkflow_profile={prior_state['workflow_profile']}\n"
                 f"workflow_requested_stages={prior_state.get('workflow_requested_stages', [])}\n"
                 f"workflow_stages={prior_state.get('workflow_stages', [])}\n"
             )
