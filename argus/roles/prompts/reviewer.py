@@ -290,6 +290,7 @@ def render_reviewer_prompt(
     _persisted = _persisted_vertical(_proot)
     explicit_vertical = str(vertical or "").strip()
     routed_vertical = explicit_vertical or _persisted
+    system_proof_review = str(routed_vertical or "").strip().lower().replace("-", "_") == "system_proof"
     prompt_context = resolve_role_prompt(
         evaluate_request(
             _proot,
@@ -627,6 +628,12 @@ def render_reviewer_prompt(
             )
         )
     )
+    operator_guidance = (
+        "Assume no operator reply will arrive; judge from current evidence, preserve "
+        "unresolved obligations, and replan when a safe reversible assumption is unavailable. "
+        if system_proof_review
+        else "Ask only for authority or facts the operator owns. "
+    )
     handoff_policy = (
         "Use `done` when a direct task meets its requirements and decisive check. "
         "Use `replan_requested` only to change the plan; `plan_signal` advises and "
@@ -640,18 +647,29 @@ def render_reviewer_prompt(
             "proves no impossibility; a missed threshold describes only that run. "
             "Root-cause, dominant-stage, bottleneck, or replacement claims need code-path "
             "evidence plus profiling, timing, or a controlled comparison. Integrity is "
-            "required, not scientific value. Ask only for authority or facts the operator "
-            "owns. `done` closes a task; at final-submission, possibly the project."
+            "required, not scientific value. "
+            + operator_guidance
+            + "`done` closes a task; at final-submission, possibly the project."
         )
+    )
+    review_actions = (
+        "approve_review for a complete task, revise_review for concrete repairs, "
+        "defer_review while already-running work or external evidence is pending, "
+        "or replan_review to challenge the plan"
+        if system_proof_review
+        else
+        "approve_review for a complete task, revise_review for concrete repairs, "
+        "defer_review while already-running work or external evidence is pending, "
+        "request_review_decision for an actual operator-owned question, or "
+        "replan_review to challenge the plan"
     )
     decision_policy = (
         "## Submit your review\n"
         "Express the complete review naturally in the operator's language. No JSON, "
         "fixed fields, named closing lines, or text template is required or parsed. "
-        "Submit the judgment with one native action tool: approve_review for a complete "
-        "task, revise_review for concrete repairs, defer_review while already-running "
-        "work or external evidence is pending, request_review_decision for an actual "
-        "operator-owned question, or replan_review to challenge the plan. Put your "
+        "Submit the judgment with one native action tool: "
+        + review_actions
+        + ". Put your "
         "complete evidence and next steps in the tool's review argument; the host "
         "passes it unchanged to Engineer. A final chat reply can simply acknowledge "
         "the action. An action is not a keyword to print: invoke the tool. "
@@ -697,8 +715,8 @@ def render_reviewer_prompt(
         + (shell_contract + "\n\n" if shell_contract else "")
         + MODEL_INTEGRITY_BOUNDARY
         + "\n\n"
-        + _PRODUCT_ACCEPTANCE_DIRECTIVE
-        + "\n\n## Reviewer role\n"
+        + ("" if system_proof_review else _PRODUCT_ACCEPTANCE_DIRECTIVE + "\n\n")
+        + "## Reviewer role\n"
         "`done` means the outcome meets this verification profile. "
         "Check essential uncertainty proportionately. Leave sources, outputs, and "
         "builds unchanged; you may record your judgment with the vertical's command. "
