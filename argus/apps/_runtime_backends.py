@@ -81,6 +81,7 @@ class _Outcome:
     # Reviewer-confirmed artifact paths and evidence from the terminal round.
     # Settlement turns these into a safe, operator-facing delivery receipt.
     final_frontier_report: dict = field(default_factory=dict)
+    final_vertical_review: dict[str, str] = field(default_factory=dict)
     final_planner_report: dict = field(default_factory=dict)
     plan_challenge: dict = field(default_factory=dict)
 

@@ -65,6 +65,17 @@ class ReviewActions:
                 "review": {"type": "string", "minLength": 1, "description": "Your complete natural-language review, including evidence and any next steps. No template or status footer."},
                 "forward_progress": {"type": "boolean", "description": "Whether this round moved toward the operator's goal."},
                 "research_result": research,
+                "vertical_review": {
+                    "type": "object",
+                    "description": "Explicit semantic assessment of a vertical-provided current basis digest. Ordinary task approval does not accept a basis.",
+                    "properties": {
+                        "subject": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                        "decision": {"enum": ["accept", "reject"]},
+                        "rationale": {"type": "string", "minLength": 1},
+                    },
+                    "required": ["subject", "decision", "rationale"],
+                    "additionalProperties": False,
+                },
                 "session_signal": {
                     "type": "object",
                     "description": "An observed role-session quality problem, not an ordinary task repair.",
@@ -168,6 +179,7 @@ class ReviewActions:
             planner_report={"plan_signal": "continue"},
             session_signal=payload.get("session_signal", {}),
             frontier_report=payload.get("frontier_report", {}),
+            vertical_review=payload.get("vertical_review", {}),
         )
         if "forward_progress" in payload:
             decision.planner_report["forward_progress"] = payload["forward_progress"]

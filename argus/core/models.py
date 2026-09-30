@@ -199,6 +199,7 @@ class ReviewDecision:
     # Runtime-owned semantic transition and explicit role-session signal. The
     # Reviewer supplies these through its native review action.
     frontier_report: dict[str, Any] = field(default_factory=dict)
+    vertical_review: dict[str, str] = field(default_factory=dict)
     session_signal: dict[str, str] = field(default_factory=dict)
     review_source: str = "reviewer"
     prompt_block_stats: dict[str, dict[str, int]] = field(default_factory=dict)
@@ -294,6 +295,8 @@ class ReviewDecision:
             payload["session_signal"] = dict(signal)
         if self.research_result is not None:
             payload["research_result"] = dict(self.research_result)
+        if self.vertical_review:
+            payload["vertical_review"] = dict(self.vertical_review)
         payload.update(extras)
         return payload
 

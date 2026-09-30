@@ -1321,6 +1321,7 @@ class SkillLoopExecuteMixin:
         final_review_next_action = ""
         review_source = ""
         final_frontier_report: dict = {}
+        final_vertical_review: dict[str, str] = {}
         final_planner_report: dict = {}
         plan_challenge: dict = {}
         rounds_list = getattr(outcome, "rounds", None) or []
@@ -1375,6 +1376,9 @@ class SkillLoopExecuteMixin:
                 raw_frontier = getattr(_final_review, "frontier_report", {}) or {}
                 if isinstance(raw_frontier, dict):
                     final_frontier_report = dict(raw_frontier)
+                raw_vertical = getattr(_final_review, "vertical_review", {})
+                if review_source == "reviewer" and isinstance(raw_vertical, dict):
+                    final_vertical_review = dict(raw_vertical)
                 raw_report = getattr(_final_review, "planner_report", {}) or {}
                 if isinstance(raw_report, dict):
                     final_planner_report = dict(raw_report)
@@ -1436,6 +1440,7 @@ class SkillLoopExecuteMixin:
             # an independent review or evidence of project completion.
             final_review_status = "not_assessed"
             review_source = ""
+            final_vertical_review = {}
             final_submission_certified = False
             completion_evidence = ""
         ex_state.new_tid = new_tid
@@ -1447,6 +1452,7 @@ class SkillLoopExecuteMixin:
         ex_state.final_review_next_action = final_review_next_action
         ex_state.review_source = review_source
         ex_state.final_frontier_report = final_frontier_report
+        ex_state.final_vertical_review = final_vertical_review
         ex_state.final_planner_report = final_planner_report
         ex_state.plan_challenge = plan_challenge
         ex_state.final_submission_certified = final_submission_certified
@@ -1636,6 +1642,7 @@ class SkillLoopExecuteMixin:
             venue_review=getattr(rounds[-1].review, "venue_review", None) if rounds else None,
             venue_review_snapshot=getattr(rounds[-1].review, "venue_review_snapshot", None) if rounds else None,
             final_frontier_report=ex_state.final_frontier_report,
+            final_vertical_review=ex_state.final_vertical_review,
             final_planner_report=ex_state.final_planner_report,
             plan_challenge=ex_state.plan_challenge,
         )

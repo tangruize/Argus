@@ -269,6 +269,7 @@ class _ExecuteState:
         self.auth_fail: Any = None
         self.rounds_list: list = []
         self.final_frontier_report: dict[str, Any] = {}
+        self.final_vertical_review: dict[str, str] = {}
         self.final_planner_report: dict[str, Any] = {}
         self.plan_challenge: dict[str, Any] = {}
         self.operator_question: str = ""
