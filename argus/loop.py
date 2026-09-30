@@ -308,13 +308,18 @@ class SkillLoop(
 
         active_stage = current_stage(vertical_state_root)
         engineer_operation = MISSION
+        active_contract = None
         if routed_vertical:
             from .verticals._base import load_vertical_contract
 
-            engineer_operation = load_vertical_contract(
+            active_contract = load_vertical_contract(
                 routed_vertical,
                 project_root=vertical_state_root,
-            ).engineer_operation(active_stage, default=MISSION)
+            )
+            engineer_operation = active_contract.engineer_operation(
+                active_stage,
+                default=MISSION,
+            )
         if routed_vertical == "research" and scope.strip().lower().replace("-", "_") == "final_submission":
             # Venue-level revision may need new evidence or a method repair.
             # The narrower narrative editor remains available for prose tasks.
@@ -424,6 +429,8 @@ class SkillLoop(
             operator_question_policy_root=self.config.operator_question_policy_root,
             operator_question_project_root=self.config.operator_question_project_root,
         )
+        if active_contract is not None:
+            active_contract.configure_rounds(round_config)
         if venue_revisions:
             # Quality rejection keeps the research review loop open. Transport,
             # empty-output, resource, and explicit operator-stop handling remain.

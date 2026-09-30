@@ -235,6 +235,7 @@ class VerticalContract:
     workflow_stage_requirements: dict[str, tuple[str, ...]] = field(default_factory=dict)
     workflow_requested_stages: tuple[str, ...] = ()
     mission_settler: MissionSettlementHook | None = None
+    round_configurator: Callable[[Any], None] | None = None
     operator_question_policy: str = "unchanged"
 
     def compose_workflow(self, requested_stages: object) -> VerticalContract:
@@ -342,6 +343,10 @@ class VerticalContract:
     def prepare_libraries(self, context: VerticalLibraryContext) -> None:
         if self.library_preparer is not None:
             self.library_preparer(context)
+
+    def configure_rounds(self, config: Any) -> None:
+        if self.round_configurator is not None:
+            self.round_configurator(config)
 
     def primary_deliverables(self, stage: str) -> tuple[str, ...]:
         return tuple((self.stage_primary_deliverables or {}).get(stage, ()))
@@ -792,6 +797,11 @@ def vertical_contract(name: str, provider: Any) -> VerticalContract:
     mission_settler = getattr(provider, "mission_settled", None)
     if mission_settler is not None and not callable(mission_settler):
         raise VerticalContractError(f"vertical {name!r} has a non-callable mission settlement hook")
+    round_configurator = getattr(provider, "configure_rounds", None)
+    if round_configurator is not None and not callable(round_configurator):
+        raise VerticalContractError(
+            f"vertical {name!r} has a non-callable round configurator"
+        )
     operator_objective_adopter = getattr(provider, "adopt_operator_objective", None)
     if operator_objective_adopter is not None and not callable(
         operator_objective_adopter
@@ -953,6 +963,7 @@ def vertical_contract(name: str, provider: Any) -> VerticalContract:
         review_purchase_policy=review_purchase_policy,
         iteration_assessor=iteration_assessor,
         mission_settler=mission_settler,
+        round_configurator=round_configurator,
         operator_question_policy=operator_question_policy,
         operator_objective_adopter=operator_objective_adopter,
         legacy_state_importer=legacy_state_importer,

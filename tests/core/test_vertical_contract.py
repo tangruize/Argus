@@ -36,6 +36,7 @@ def test_minimal_non_research_vertical_implements_only_documented_contract() -> 
     assert contract.banner("engineer") == ""
     assert contract.role_prompt_context is None
     assert contract.mission_settler is None
+    assert contract.round_configurator is None
     assert contract.evidence_schema is None
     assert contract.review_purchase(
         project_root=Path("."),
@@ -44,6 +45,25 @@ def test_minimal_non_research_vertical_implements_only_documented_contract() -> 
         semantic_duplicate=None,
         stage_reviewed_at=None,
     ) is None
+
+
+def test_optional_round_configurator_is_explicit_and_validated() -> None:
+    calls = []
+    provider = SimpleNamespace(
+        CHECKLIST_STAGE_ORDER=("work",),
+        CHECKLIST_ITEMS={"work": (_item("work"),)},
+        completion_gate="none",
+        configure_rounds=lambda config: calls.append(config),
+    )
+    contract = vertical_contract("long_running", provider)
+    config = object()
+
+    contract.configure_rounds(config)
+
+    assert calls == [config]
+    provider.configure_rounds = "not callable"
+    with pytest.raises(VerticalContractError, match="round configurator"):
+        vertical_contract("long_running", provider)
 
 
 def test_optional_settlement_hook_preserves_attempt_and_separate_roots(tmp_path: Path) -> None:
