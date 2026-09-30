@@ -208,6 +208,7 @@ class VerticalContract:
     stage_completion_validator: Callable[..., object] | None = None
     automatic_stage_completion: Callable[..., bool] | None = None
     planner_task_validator: Callable[[str, Path, Any], object] | None = None
+    mission_workdir_resolver: Callable[..., object] | None = None
     review_purchase_policy: Callable[..., PlannerReviewPurchaseDecision] | None = None
     iteration_assessor: IterationAssessmentHook | None = None
     # Optional: records the operator's stated objective at project setup, for a
@@ -449,6 +450,18 @@ class VerticalContract:
             for issue in self.planner_task_validator(stage, project_root, task)
             if str(issue).strip()
         )
+
+    def mission_workdir(
+        self, *, stage: str, project_root: Path, mission: Any,
+    ) -> Path | None:
+        if self.mission_workdir_resolver is None:
+            return None
+        value = self.mission_workdir_resolver(
+            stage=stage, project_root=project_root, mission=mission,
+        )
+        if value is None or not str(value).strip():
+            return None
+        return Path(value).expanduser().resolve(strict=True)
 
     def review_purchase(
         self,
@@ -784,6 +797,11 @@ def vertical_contract(name: str, provider: Any) -> VerticalContract:
         raise VerticalContractError(
             f"vertical {name!r} has a non-callable planner task validator"
         )
+    mission_workdir_resolver = getattr(provider, "resolve_mission_workdir", None)
+    if mission_workdir_resolver is not None and not callable(mission_workdir_resolver):
+        raise VerticalContractError(
+            f"vertical {name!r} has a non-callable mission workdir resolver"
+        )
     review_purchase_policy = getattr(provider, "review_purchase_policy", None)
     if review_purchase_policy is not None and not callable(review_purchase_policy):
         raise VerticalContractError(
@@ -918,6 +936,7 @@ def vertical_contract(name: str, provider: Any) -> VerticalContract:
             else None
         ),
         role_prompt_context=role_prompt_context,
+        mission_workdir_resolver=mission_workdir_resolver,
         evidence_schema=getattr(provider, "EVIDENCE_SCHEMA", None),
         requires_independent_review=bool(
             getattr(provider, "REQUIRE_INDEPENDENT_REVIEW", True)

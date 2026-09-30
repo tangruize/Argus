@@ -284,6 +284,24 @@ def test_chokepoint_allows_per_invocation_safe_mode(gate_off):
     assert o.sandbox_mode == "read-only"
 
 
+def test_copilot_forced_safe_mode_keeps_path_verification(gate_off):
+    runner = AgentCliRunner(agent_bin="copilot", backend="copilot")
+    options = runner._apply_sandbox_policy(
+        RunnerOptions(
+            dangerous_yolo=False,
+            force_safe_mode=True,
+            working_dir="/verification",
+        )
+    )
+    command = runner._build_copilot_command(
+        resume_thread_id=None,
+        options=options,
+    )
+    assert "--yolo" not in command
+    assert "--allow-all-paths" not in command
+    assert "--allow-all-tools" in command
+
+
 def test_chokepoint_converts_builder_when_gate_on(gate_on):
     o = _codex_runner()._apply_sandbox_policy(RunnerOptions(dangerous_yolo=True, working_dir="/wd"))
     assert o.sandbox_mode == "workspace-write"

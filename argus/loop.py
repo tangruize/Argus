@@ -113,6 +113,7 @@ class SkillLoopConfig:
     skip_git_repo_check: bool = True
     dangerous_yolo: bool = False
     sandbox_mode: str | None = None
+    force_safe_mode: bool = False
     isolate_workdir: bool = False
     extra_args: list[str] | None = None
     session_id: str | None = None
@@ -253,6 +254,7 @@ class SkillLoop(
                 skip_git_repo_check=self.config.skip_git_repo_check,
                 dangerous_yolo=self.config.dangerous_yolo,
                 sandbox_mode=self.config.sandbox_mode,
+                force_safe_mode=self.config.force_safe_mode,
                 isolate_workdir=self.config.isolate_workdir,
             ),
             reviewer_config=ReviewerConfig(

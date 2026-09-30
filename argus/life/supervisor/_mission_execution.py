@@ -82,9 +82,12 @@ class MissionExecutionMixin(
                     log.exception("life supervisor: claim rollback failed")
             return {"status": "claim_lost", "item_id": item.id}
         item = claimed
-        # Resolve the claimed node before consulting any repository-facing
-        # policy.  Adoption updates the active campaign workdir, so the bound
-        # Manager and every later mission phase see the same canonical tree.
+        route_before = dict(
+            getattr(item, "manager_decision", {}) or {}
+        )
+        # Resolve an already-routed node before consulting repository-facing
+        # policy. If Manager supplies or changes the route below, resolution is
+        # repeated exactly once under that authoritative decision.
         resolved_mission_workdir = self._resolve_mission_workdir(item)
         vertical_root = self._mission_vertical_root(
             item,
@@ -130,6 +133,15 @@ class MissionExecutionMixin(
                 "outcome_class": "blocked", "stop_kind": "permanent_error",
                 "stop_reason": reason,
             }
+
+        route_after = dict(getattr(item, "manager_decision", {}) or {})
+        if route_after != route_before:
+            self._clear_vertical_workdir_cache(item)
+            resolved_mission_workdir = self._resolve_mission_workdir(item)
+            vertical_root = self._mission_vertical_root(
+                item,
+                resolved_mission_workdir,
+            )
 
         prelude = self._build_mission_prelude(item, defer_memory=True)
         state = self._prepare_mission_context(

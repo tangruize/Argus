@@ -11,6 +11,7 @@ These tests pin that the runner forwards ``run_exec`` to the manager backend
 from __future__ import annotations
 
 from argus.apps._runtime import _SkillLoopRunner
+from argus.apps._runtime_execute import _dangerous_yolo_for_mission
 
 
 class _StubBackend:
@@ -49,3 +50,18 @@ def test_run_exec_falls_back_to_default_backend() -> None:
     r._backend = _StubBackend("default")
     out = r.run_exec(prompt="p", run_label="manager.skill_placement")
     assert out == "ran:default"
+
+
+def test_system_proof_keeps_only_copilot_path_verification_enabled() -> None:
+    assert _dangerous_yolo_for_mission(
+        "system_proof", safe_mode=False, backend="copilot",
+    ) is False
+    assert _dangerous_yolo_for_mission(
+        "system_proof", safe_mode=False, backend="codex",
+    ) is True
+    assert _dangerous_yolo_for_mission(
+        "software", safe_mode=False, backend="copilot",
+    ) is True
+    assert _dangerous_yolo_for_mission(
+        "system_proof", safe_mode=True, backend="copilot",
+    ) is False

@@ -126,6 +126,7 @@ class EngineerConfig:
     skip_git_repo_check: bool = True
     dangerous_yolo: bool = False
     sandbox_mode: str | None = None
+    force_safe_mode: bool = False
     isolate_workdir: bool = False
     # Public, historical caller configuration for pipeline stages in which the
     # engineer runs with codex's native live web_search enabled

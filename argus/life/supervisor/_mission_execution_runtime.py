@@ -224,8 +224,54 @@ class MissionExecutionRuntimeMixin:
             prelude = prelude + "\n\n---\n\n" + history if prelude else history
         return prelude
 
+    def _vertical_mission_workdir(
+        self,
+        item: BacklogItem,
+        current: Path,
+    ) -> Path | None:
+        """Resolve a built-in/plugin workspace hook once per claimed item.
+
+        Project-local verticals deliberately fall through to the existing
+        execution_workdir adoption path: their policy can live in a nested
+        repository or the durable state root and must not be looked up against
+        the campaign checkout prematurely.
+        """
+        checked = bool(getattr(item, "_vertical_workdir_checked", False))
+        if checked:
+            cached = str(getattr(item, "_vertical_workdir_cache", "") or "")
+            return Path(cached) if cached else None
+        decision = getattr(item, "manager_decision", {}) or {}
+        vertical = str(decision.get("vertical") or "").strip()
+        target: Path | None = None
+        if vertical:
+            from ...verticals._base import load_vertical_contract
+
+            try:
+                contract = load_vertical_contract(vertical, scoped=False)
+            except LookupError:
+                contract = None
+            if contract is not None:
+                target = contract.mission_workdir(
+                    stage=str(decision.get("stage") or "").strip(),
+                    project_root=current,
+                    mission=item,
+                )
+        setattr(item, "_vertical_workdir_checked", True)
+        setattr(
+            item,
+            "_vertical_workdir_cache",
+            str(target) if target is not None else "",
+        )
+        return target
+
+    @staticmethod
+    def _clear_vertical_workdir_cache(item: BacklogItem) -> None:
+        for name in ("_vertical_workdir_checked", "_vertical_workdir_cache"):
+            if hasattr(item, name):
+                delattr(item, name)
+
     def _resolve_mission_workdir(self, item: BacklogItem) -> Path:
-        """Resolve/adopt an ordinary Planner-selected nested repository."""
+        """Resolve a trusted vertical workspace or an ordinary nested repository."""
         requested = str(getattr(item, "execution_workdir", "") or "").strip()
         tags = {str(tag or "").strip().lower() for tag in item.tags}
         current = self._project_workdir().expanduser().resolve(strict=True)
@@ -310,6 +356,34 @@ class MissionExecutionRuntimeMixin:
             )
             item.execution_workdir = str(worktree)
             return worktree
+        target = self._vertical_mission_workdir(item, current)
+        if target is not None:
+            if not target.is_dir():
+                raise ValueError(
+                    f"vertical mission workdir is not a directory: {target}"
+                )
+            if target == current:
+                self.memory.backlog.update(
+                    item.id, execution_workdir=str(target),
+                )
+                item.execution_workdir = str(target)
+                return target
+            repository = _run_hidden(
+                ["git", "rev-parse", "--show-toplevel"],
+                cwd=target,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            if Path(repository).resolve(strict=True) != target:
+                raise ValueError(
+                    "vertical mission workdir must be a Git repository root"
+                )
+            self.memory.backlog.update(
+                item.id, execution_workdir=str(target),
+            )
+            item.execution_workdir = str(target)
+            return target
         if not requested:
             return current
         configured_reader = getattr(self, "_configured_worktree", None)
@@ -395,11 +469,20 @@ class MissionExecutionRuntimeMixin:
         """Select repository policy without moving durable harness state."""
         requested = str(getattr(item, "execution_workdir", "") or "").strip()
         tags = {str(tag or "").strip().lower() for tag in item.tags}
+        policy_root = Path(self._artifact_root()).expanduser().resolve()
+        campaign_root = self._project_workdir().expanduser().resolve(strict=True)
+        trusted = self._vertical_mission_workdir(item, campaign_root)
+        if (
+            "framework_maintenance" not in tags
+            and trusted is not None
+            and trusted == resolved_mission_workdir
+        ):
+            return policy_root
         if requested and "framework_maintenance" not in tags:
             return resolved_mission_workdir
         # Preserve the session-state contract for framework maintenance and
         # legacy items that do not select a node workdir explicitly.
-        return Path(self._artifact_root())
+        return policy_root
 
     def _prepare_mission_context(
         self,

@@ -89,6 +89,17 @@ def _decided_vertical(config: object, workdir: Path) -> str:
         return ""
 
 
+def _dangerous_yolo_for_mission(
+    active_vertical: str,
+    safe_mode: bool,
+    backend: str,
+) -> bool:
+    """Keep Copilot path checks without changing other backend policies."""
+    return not safe_mode and not (
+        active_vertical == "system_proof" and backend == "copilot"
+    )
+
+
 def _execution_host_blocked_outcome(outcome: object) -> bool:
     return (
         getattr(outcome, "status", "") == "infra_blocked"
@@ -705,6 +716,17 @@ class SkillLoopExecuteMixin:
         # (`bwrap: Can't create file at /.codex: Permission denied`).
         # Operators can opt back into sandbox via ARGUS_SKILL_SAFE_MODE=1.
         safe_mode = _env_flag("ARGUS_SKILL_SAFE_MODE", False)
+        engineer_backend = (
+            getattr(self, "engineer_backend", None)
+            or getattr(self, "_backend", None)
+        )
+        engineer_backend_name = str(
+            getattr(engineer_backend, "backend", "") or ""
+        ).strip().lower()
+        copilot_system_proof = (
+            active_vertical == "system_proof"
+            and engineer_backend_name == "copilot"
+        )
         config_kwargs = {
             "engineer_model": _engineer_model_for_task(args.engineer_model, active_vertical, objective, _proot),
             "reviewer_model": args.reviewer_model,
@@ -731,7 +753,12 @@ class SkillLoopExecuteMixin:
                 "ARGUS_SKILL_AUTO_INIT_WIKI",
                 default=True,
             ),
-            "dangerous_yolo": not safe_mode,
+            "dangerous_yolo": _dangerous_yolo_for_mission(
+                active_vertical,
+                safe_mode,
+                engineer_backend_name,
+            ),
+            "force_safe_mode": copilot_system_proof,
             "full_auto": safe_mode,
             "sandbox_mode": (
                 "workspace-write" if maintenance_mission and safe_mode else None

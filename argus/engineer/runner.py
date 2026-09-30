@@ -445,6 +445,7 @@ class SupervisedEngineer(
                     skip_git_repo_check=self.engineer_config.skip_git_repo_check,
                     dangerous_yolo=self.engineer_config.dangerous_yolo,
                     sandbox_mode=self.engineer_config.sandbox_mode,
+                    force_safe_mode=self.engineer_config.force_safe_mode,
                     isolate_workdir=self.engineer_config.isolate_workdir,
                     working_dir=str(workdir),
                     live_search=_engineer_live_search(
