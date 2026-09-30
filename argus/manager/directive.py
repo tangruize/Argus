@@ -23,8 +23,8 @@ STEERING_MAX_ENTRIES = 10
 STEERING_MAX_CHARS = 4_000
 _DIRECTIVE_VERSION = 1
 _STEERING_VERSION = 1
-OperatorQuestionPolicy = Literal["allow", "forbid", "unchanged"]
-_OPERATOR_QUESTION_POLICIES = frozenset({"allow", "forbid", "unchanged"})
+OperatorQuestionPolicy = Literal["allow", "forbid", "nonblocking", "unchanged"]
+_OPERATOR_QUESTION_POLICIES = frozenset({"allow", "forbid", "nonblocking", "unchanged"})
 
 
 @dataclass(frozen=True)
@@ -514,13 +514,65 @@ def active_operator_question_policy(
     state_root: Path | str | None,
     *,
     expected_objective: str | None = None,
+    project_root: Path | str | None = None,
 ) -> OperatorQuestionPolicy:
-    """Read the current directive's structured operator-question policy."""
+    """Prefer explicit steering, then the selected vertical's default."""
     record = load_active_manager_directive(
         state_root,
         expected_objective=expected_objective,
     )
-    return record.operator_question_policy if record is not None else "unchanged"
+    if record is not None and record.operator_question_policy != "unchanged":
+        return record.operator_question_policy
+    if project_root is not None and project_root != state_root:
+        project_record = load_active_manager_directive(
+            project_root, expected_objective=expected_objective,
+        )
+        if project_record is not None and project_record.operator_question_policy != "unchanged":
+            return project_record.operator_question_policy
+    root = project_root if project_root is not None else state_root
+    if root is None:
+        return "unchanged"
+    from ..core.pipeline_state import read_pipeline_state
+    from ..skills.vertical_select import resolve_vertical
+    from ..verticals._base import load_vertical_contract
+
+    if not read_pipeline_state(root).get("vertical"):
+        return "unchanged"
+    contract = load_vertical_contract(resolve_vertical(root), project_root=Path(root))
+    return _validated_operator_question_policy(contract.operator_question_policy)
+
+
+def publish_nonblocking_question(
+    state_root: Path | str,
+    question: str,
+    *,
+    source: str,
+    options: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Retain an optional question in the conversation, not a pending decision."""
+    from ..core.operator_messages import publish_operator_message
+
+    details = {
+        "question": question,
+        "options": options or [],
+        "source": source,
+        "reply_required": False,
+    }
+    identity = json.dumps(
+        [_current_objective_sha256(state_root), details], sort_keys=True,
+    )
+    publish_operator_message(
+        state_root,
+        text=(
+            f"{question}\n\n"
+            "Optional reply: work does not wait for your answer. The team must "
+            "record its provisional judgment and continue or replan within the "
+            "authorized scope; silence is not approval or evidence."
+        ),
+        message_id="nonblocking-question-" + hashlib.sha256(identity.encode()).hexdigest(),
+        event_fields={"nonblocking_operator_question": details},
+    )
+    return details
 
 
 def clear_active_manager_directive(state_root: Path | str) -> bool:
@@ -547,6 +599,7 @@ __all__ = [
     "OperatorQuestionPolicy",
     "active_manager_directive_message",
     "active_operator_question_policy",
+    "publish_nonblocking_question",
     "append_steering_directive",
     "clear_active_manager_directive",
     "load_active_manager_directive",

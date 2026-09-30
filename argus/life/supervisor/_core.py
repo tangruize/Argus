@@ -651,7 +651,34 @@ class LifeSupervisor(
         if action == "ask_operator":
             from ...manager.directive import active_operator_question_policy
 
-            if active_operator_question_policy(self.memory.root) == "forbid":
+            policy = active_operator_question_policy(self.memory.root, project_root=self._artifact_root())
+            if policy == "nonblocking":
+                from ...manager.directive import publish_nonblocking_question
+
+                question = publish_nonblocking_question(
+                    self.memory.root,
+                    str(
+                        challenge.get("operator_question") or outcome.get("operator_question")
+                        or challenge.get("challenge") or outcome.get("review_reason")
+                        or "Additional direction would help."
+                    ),
+                    source="manager",
+                )
+                action = "revise"
+                challenge["nonblocking_operator_question"] = question
+                challenge["manager_reason"] = (
+                    "Reply optional; revise within existing authority, record the "
+                    "provisional judgment, and preserve the original goal and obligations."
+                )
+                challenge["operator_question"] = ""
+                challenge["operator_options"] = []
+                challenge.pop("pending_question", None)
+                challenge.pop("operator_decision", None)
+                outcome["operator_question"] = ""
+                outcome["operator_options"] = []
+                outcome.pop("pending_question", None)
+                outcome.pop("operator_decision", None)
+            elif policy == "forbid":
                 from ...core.autonomy import assess_operator_intervention
 
                 reviewer_alternative = str(

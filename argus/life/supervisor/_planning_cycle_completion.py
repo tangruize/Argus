@@ -486,6 +486,18 @@ class PlanningCycleCompletionMixin:
         expected_plan_version = state.expected_plan_version
 
         if verdict.waiting:
+            from ...manager.directive import active_operator_question_policy
+
+            contract = verdict.waiting_contract
+            if (
+                contract is not None
+                and contract.operator_action_required
+                and active_operator_question_policy(
+                    self.memory.root, project_root=self._artifact_root(),
+                ) == "nonblocking"
+            ):
+                self._deactivate_planner_waiting_contract()
+                return self._pause_empty_plan_for_operator(state)
             feedback = self._load_manager_planner_feedback()
             if feedback is not None:
                 diagnostic = str(feedback.get("diagnostic") or "")

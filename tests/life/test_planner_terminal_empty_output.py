@@ -773,9 +773,11 @@ def test_nonterminal_empty_plan_repair_exhaustion_asks_operator(
     )
 
 
+@pytest.mark.parametrize("policy", ["forbid", "nonblocking"])
 def test_nonterminal_empty_plan_does_not_park_when_questions_are_forbidden(
     tmp_path: Path,
     monkeypatch,
+    policy,
 ) -> None:
     from argus.manager.directive import set_active_manager_directive
 
@@ -787,7 +789,7 @@ def test_nonterminal_empty_plan_does_not_park_when_questions_are_forbidden(
     set_active_manager_directive(
         supervisor.memory.root,
         "continue without questions",
-        operator_question_policy="forbid",
+        operator_question_policy=policy,
     )
 
     assert supervisor._plan_next_work() == PLAN_ERROR
@@ -807,6 +809,45 @@ def test_nonterminal_empty_plan_does_not_park_when_questions_are_forbidden(
     assert error_event["operator_alert"] is False
     assert error_event["recoverable"] is True
     assert error_event["stop_kind"] == "planner_empty_plan"
+
+
+def test_nonblocking_operator_wait_returns_to_planning(tmp_path: Path, monkeypatch) -> None:
+    from argus.life.supervisor._planning_cycle_helpers import _PlanCycleState
+    from argus.manager.directive import set_active_manager_directive
+    from argus.planner.planner import WaitingContract
+
+    supervisor, _, sink = _make_supervisor(tmp_path, monkeypatch, terminal_stage_done=False)
+    set_active_manager_directive(
+        supervisor.memory.root, "Replies optional", operator_question_policy="nonblocking",
+    )
+    state = _PlanCycleState(None)
+    state.verdict = PlannerVerdict(
+        project_done=False, reason="Need a caller interpretation", waiting=True,
+        waiting_contract=WaitingContract(
+            blocker_fingerprint="caller-choice", recheck_condition="operator response",
+            recheck_token="choice", operator_action_required=True, wake_on=("operator_input",),
+        ),
+    )
+    assert supervisor._pc_handle_waiting(state) == PLAN_ERROR
+    assert supervisor.memory.backlog.all() == []
+    assert not any(event.get("type") == "life.operator_question.pending" for event in sink.events)
+
+
+def test_nonblocking_manager_question_revises_instead_of_parking(tmp_path: Path, monkeypatch) -> None:
+    from argus.manager.directive import set_active_manager_directive
+
+    supervisor, _, _ = _make_supervisor(tmp_path, monkeypatch, terminal_stage_done=False)
+    set_active_manager_directive(
+        supervisor.memory.root, "Replies optional", operator_question_policy="nonblocking",
+    )
+    outcome = {"plan_challenge": {
+        "manager_action": "ask_operator", "challenge": "Caller interpretation is ambiguous",
+        "operator_question": "Interpretation A or B?", "authority_impact": "operator",
+    }}
+    assert supervisor._adjudicate_mission_challenge(outcome) == "revise"
+    assert outcome["operator_question"] == ""
+    assert outcome["plan_challenge"]["nonblocking_operator_question"]["question"] == "Interpretation A or B?"
+    assert supervisor.memory.backlog.all() == []
 
 
 class _StructuredPlannerRunner(_EmptyPlannerThenManagerRunner):

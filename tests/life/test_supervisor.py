@@ -1381,11 +1381,11 @@ def test_pragmatic_autonomy_parks_explicit_operator_question_by_default(
         ),
     )
     project_root = tmp_path / "project-life"
-    seen_policy_roots: list[Path] = []
+    seen_policy_roots: list[tuple[Path, Path]] = []
     monkeypatch.setattr(sup, "_artifact_root", lambda: project_root)
     monkeypatch.setattr(
         "argus.manager.directive.active_operator_question_policy",
-        lambda root: seen_policy_roots.append(Path(root)) or "unchanged",
+        lambda root, *, project_root: seen_policy_roots.append((Path(root), Path(project_root))) or "unchanged",
     )
     item = mem.backlog.add(BacklogItem.new(
         title="Choose the scope",
@@ -1400,7 +1400,7 @@ def test_pragmatic_autonomy_parks_explicit_operator_question_by_default(
     assert stored.pending_question == (
         "Should the benchmark use a smaller diagnostic shape?"
     )
-    assert seen_policy_roots == [project_root]
+    assert seen_policy_roots == [(mem.root, project_root)]
 
 
 @pytest.mark.parametrize("mode", ["pragmatic", "cautious"])

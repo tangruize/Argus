@@ -83,7 +83,7 @@ def _control_capsule(root: Path, *, cancelled: Callable[[], bool] | None = None)
     if directive:
         if (directive.get("version") != 1 or not isinstance(directive.get("text"), str)
                 or not directive["text"].strip()
-                or directive.get("operator_question_policy", "unchanged") not in {"allow", "forbid", "unchanged"}):
+                or directive.get("operator_question_policy", "unchanged") not in {"allow", "forbid", "nonblocking", "unchanged"}):
             diagnostics.append("active_manager_directive.json: invalid directive was not projected")
         elif str(root / "continuous.json") in unobserved:
             diagnostics.append("active_manager_directive.json: objective scope could not be verified")

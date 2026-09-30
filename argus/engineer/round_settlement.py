@@ -31,13 +31,19 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-def _operator_questions_allowed(supervised_config: "SupervisedConfig") -> bool:
+def _operator_question_policy(supervised_config: "SupervisedConfig") -> str:
     root = supervised_config.operator_question_policy_root
-    if root is not None:
+    if root is not None or supervised_config.operator_question_project_root is not None:
         from ..manager.directive import active_operator_question_policy
 
-        return active_operator_question_policy(root) != "forbid"
-    return bool(supervised_config.operator_questions_allowed)
+        return active_operator_question_policy(
+            root, project_root=supervised_config.operator_question_project_root,
+        )
+    return "allow" if supervised_config.operator_questions_allowed else "forbid"
+
+
+def _operator_questions_allowed(supervised_config: "SupervisedConfig") -> bool:
+    return _operator_question_policy(supervised_config) != "forbid"
 
 
 def _enforce_operator_question_policy(
@@ -46,7 +52,50 @@ def _enforce_operator_question_policy(
     supervised_config: "SupervisedConfig",
     state: RoundLoopState,
 ) -> ReviewDecision:
-    if _operator_questions_allowed(supervised_config) or not review.operator_question:
+    policy = _operator_question_policy(supervised_config)
+    if policy == "nonblocking" and review.operator_question:
+        from ..manager.directive import publish_nonblocking_question
+
+        root = (
+            supervised_config.operator_question_policy_root
+            or supervised_config.operator_question_project_root
+        )
+        assert root is not None
+        question = publish_nonblocking_question(
+            root, review.operator_question, source=review.review_source,
+            options=review.operator_options,
+        )
+        report = dict(review.planner_report) if isinstance(review.planner_report, dict) else {}
+        repeated = bool(
+            state.rounds
+            and state.rounds[-1].review.review_source == "nonblocking_operator_question"
+        )
+        report.update({
+            "nonblocking_operator_question": question,
+            "forward_progress": False,
+            "plan_signal": "reconsider" if repeated else "continue",
+            "challenge": review.reason,
+            "authority_impact": "technical",
+        })
+        return replace(
+            review,
+            status=(
+                review.status if review.backend_unavailable
+                else "replan_requested" if repeated else "continue"
+            ),
+            reason=review.reason,
+            next_action=(
+                "The question is recorded for an optional reply. Do not wait or "
+                "repeat it as a prerequisite. Record a source-supported provisional "
+                "judgment and continue within authorized scope; if this route cannot "
+                "proceed, give Planner another route with the original goal and "
+                "unresolved obligations intact. Silence is not approval or proof."
+            ),
+            operator_question="", operator_options=[],
+            planner_report=report,
+            review_source="nonblocking_operator_question",
+        )
+    if policy != "forbid" or not review.operator_question:
         return review
     repeated = bool(
         state.rounds

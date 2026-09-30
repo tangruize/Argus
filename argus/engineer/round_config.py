@@ -360,6 +360,7 @@ class SupervisedConfig:
     )
     operator_questions_allowed: bool = True
     operator_question_policy_root: Path | None = None
+    operator_question_project_root: Path | None = None
 
     def __post_init__(self) -> None:
         """Keep the round-budget guards reachable when ``max_rounds`` shrinks.

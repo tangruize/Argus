@@ -235,6 +235,7 @@ class VerticalContract:
     workflow_stage_requirements: dict[str, tuple[str, ...]] = field(default_factory=dict)
     workflow_requested_stages: tuple[str, ...] = ()
     mission_settler: MissionSettlementHook | None = None
+    operator_question_policy: str = "unchanged"
 
     def compose_workflow(self, requested_stages: object) -> VerticalContract:
         if not self.workflow_stage_requirements:
@@ -609,6 +610,9 @@ def vertical_contract(name: str, provider: Any) -> VerticalContract:
     scoped = getattr(provider, "_argus_contract", None)
     if isinstance(scoped, VerticalContract):
         return scoped
+    operator_question_policy = getattr(provider, "OPERATOR_QUESTION_POLICY", "unchanged")
+    if operator_question_policy not in ("unchanged", "allow", "forbid", "nonblocking"):
+        raise VerticalContractError(f"vertical {name!r} has an invalid operator-question policy")
     stage_order = tuple(
         str(stage).strip()
         for stage in (getattr(provider, "CHECKLIST_STAGE_ORDER", ()) or ())
@@ -949,6 +953,7 @@ def vertical_contract(name: str, provider: Any) -> VerticalContract:
         review_purchase_policy=review_purchase_policy,
         iteration_assessor=iteration_assessor,
         mission_settler=mission_settler,
+        operator_question_policy=operator_question_policy,
         operator_objective_adopter=operator_objective_adopter,
         legacy_state_importer=legacy_state_importer,
         stage_primary_deliverables=stage_primary_deliverables,

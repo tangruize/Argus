@@ -162,6 +162,7 @@ class SkillLoopConfig:
     # Effective structured Manager policy loaded from project state.
     operator_questions_allowed: bool = True
     operator_question_policy_root: Path | None = None
+    operator_question_project_root: Path | None = None
 
     def resolved_reviewer_model(self) -> str:
         return self.reviewer_model or self.engineer_model
@@ -421,6 +422,7 @@ class SkillLoop(
             narrative_mission_id=run_id,
             operator_questions_allowed=self.config.operator_questions_allowed,
             operator_question_policy_root=self.config.operator_question_policy_root,
+            operator_question_project_root=self.config.operator_question_project_root,
         )
         if venue_revisions:
             # Quality rejection keeps the research review loop open. Transport,

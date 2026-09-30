@@ -75,10 +75,20 @@ class PlanningCycleVerdictMixin:
     ) -> str:
         """Make an exhausted empty plan visible instead of silently backing off."""
         verdict = state.verdict
-        reason = str(verdict.reason or verdict.error or "").strip()
-        from ...manager.directive import active_operator_question_policy
+        reason = str(verdict.waiting_reason or verdict.reason or verdict.error or "").strip()
+        from ...manager.directive import (
+            active_operator_question_policy,
+            publish_nonblocking_question,
+        )
 
-        if active_operator_question_policy(self.memory.root) == "forbid":
+        policy = active_operator_question_policy(self.memory.root, project_root=self._artifact_root())
+        if policy in {"forbid", "nonblocking"}:
+            if policy == "nonblocking":
+                publish_nonblocking_question(
+                    self.memory.root,
+                    "Planner could use additional direction: " + reason,
+                    source="planner",
+                )
             self._emit({
                 "type": EventType.LIFE_PLANNER_ERROR,
                 "cycle": self._planning_cycles,
@@ -89,7 +99,7 @@ class PlanningCycleVerdictMixin:
                 "stop_kind": "planner_empty_plan",
             })
             self._emit_status(
-                "planner has no concrete task; operator questions are forbidden, "
+                "planner has no concrete task; an operator reply is not required, "
                 f"so autonomous retry/backoff remains active: {reason[:240]}"
             )
             return PLAN_ERROR

@@ -783,6 +783,7 @@ class SkillLoopExecuteMixin:
             active_operator_question_policy(operator_policy_root) != "forbid"
         )
         config_kwargs["operator_question_policy_root"] = operator_policy_root
+        config_kwargs["operator_question_project_root"] = _proot
         # Campaign lifetime metadata forwarded from the daemon namespace so the
         # Manager stage hook receives open_ended=True for daemon-created open-ended
         # campaigns, preventing final_stage_completion_decision from overwriting a

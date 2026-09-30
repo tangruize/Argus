@@ -573,7 +573,7 @@ def classify_front_door(
     if (
         callable(operator_question_policy_sink)
         and control == "steer"
-        and question_policy in {"allow", "forbid", "unchanged"}
+        and question_policy in {"allow", "forbid", "nonblocking", "unchanged"}
     ):
         try:
             operator_question_policy_sink(

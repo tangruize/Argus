@@ -95,8 +95,6 @@ def test_front_door_prompt_has_a_strict_token_efficiency_budget(tmp_path) -> Non
     assert "Questions, explanations, criticism and suggestions are NONE" in prompt
     assert "Ambiguity is NONE" in prompt
     assert all(mode in prompt for mode in ("PROJECTSTATUS", "ARGUSSTATUS", "HOSTSTATUS"))
-    assert "FORBID only for an explicit command" in prompt
-    assert "ALLOW only when explicitly re-enabled" in prompt
     assert "conversation, status, a quick inspection" in prompt
     assert "finite local task" in prompt
     assert "IMPLEMENT" in prompt
@@ -530,6 +528,7 @@ def test_steer_control_routes_running_mission_direction_inline() -> None:
     [
         ("Do not ask further questions; continue autonomously.", "forbid"),
         ("Questions are allowed again.", "allow"),
+        ("Questions are welcome, but keep working without my answer.", "nonblocking"),
     ],
 )
 def test_structured_steer_records_explicit_operator_question_policy(

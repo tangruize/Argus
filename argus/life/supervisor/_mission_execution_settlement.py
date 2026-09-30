@@ -635,15 +635,33 @@ class MissionExecutionSettlementMixin:
             from ...manager.directive import active_operator_question_policy
 
             operator_question_policy = active_operator_question_policy(
-                self._artifact_root()
+                self.memory.root, project_root=self._artifact_root(),
             )
+            if operator_question_policy == "nonblocking":
+                from ...manager.directive import publish_nonblocking_question
+
+                question = publish_nonblocking_question(
+                    self.memory.root, operator_question, source="mission",
+                    options=getattr(outcome, "operator_options", None),
+                )
+                report = dict(getattr(outcome, "final_planner_report", {}) or {})
+                report["nonblocking_operator_question"] = question
+                setattr(outcome, "final_planner_report", report)
+                setattr(outcome, "operator_question", "")
+                setattr(outcome, "operator_options", [])
+                operator_question = ""
+                if status == "blocked" and not getattr(outcome, "backend_unavailable", False):
+                    status = "replan_requested"
+                    success = False
+                    state.stop_reason = "Optional question recorded; Planner must choose an autonomous continuation."
+                    setattr(outcome, "final_review_status", "replan_requested")
             from ...core.autonomy import (
                 assess_operator_intervention,
                 resolve_autonomy_mode,
                 technical_continuation,
             )
 
-            if (
+            if operator_question and (
                 operator_question_policy == "forbid"
                 or resolve_autonomy_mode() == "autonomous"
             ):
